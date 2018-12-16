@@ -18,9 +18,9 @@ public class ConsistentHash implements Strategy {
     private Map<Integer, Address> addresses;
 
     /**
-     * Construit le ring en fonction des noeuds ups
+     * Build a ring from the living nodes
      * @param view
-     *              la vue actuelle
+     *              the current view
      */
     public ConsistentHash(View view) {
         this.ring = new TreeSet<>();
@@ -30,7 +30,7 @@ public class ConsistentHash implements Strategy {
         int size = memberList.size();
         int id;
         for (int i=0; i<size; i++) {
-            id = i* Integer.MAX_VALUE/size;
+            id = i* (Integer.MAX_VALUE - Integer.MIN_VALUE)/size + Integer.MIN_VALUE;
             ring.add(id);
             addresses.put(id, memberList.get(i));
         }
