@@ -15,8 +15,8 @@ entry_point=$(kubectl get svc kvstore-service -o yaml | grep ip | awk '{print $3
 # management
 
 clean_all(){
-    k8s_delete_all_pods $(config cluster) >&/dev/null
-    gsutil rm -r gs://$(config bucket)/* >&/dev/null
+    k8s_delete_all_pods $(config cluster) # >&/dev/null
+    gsutil rm -r gs://$(config bucket)/* # >&/dev/null
     log "cleaned"
 }
 
@@ -67,10 +67,16 @@ kvs_put(){
 # tests
 
 test_read_my_write(){
+    for i in {1..20}
+    do
+    kvs_put $i $((20*i))
+    kvs_get $i
+    done
     true # FIXME
 }
 
 test_causality(){
+
     true # FIXME
 }
 
@@ -78,3 +84,6 @@ test_causality_with_elasticity(){
     true # FIXME
 }
 
+clean_all
+kvs_create
+test_read_my_write

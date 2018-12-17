@@ -83,6 +83,7 @@ k8s_delete() {
 }
 
 k8s_delete_all_pods() {
+    echo "k8s_delete_all_pods start..."
     if [ $# -ne 1 ]; then
         echo "usage: k8s_delete_all_pods cluster"
         exit -1
@@ -92,6 +93,7 @@ k8s_delete_all_pods() {
 	    --grace-period=0 --force \
 	    2>/dev/null &
 
+    echo "deleting all pods..."
     # wait for all pods to terminate
     while [ "${empty}" != "1" ]; do
         empty=$(kubectl --context=${cluster} get pods 2>&1 |
