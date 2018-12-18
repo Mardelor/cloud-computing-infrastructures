@@ -48,7 +48,25 @@ d'étranglement sur un serveur "coordinateur".
 
 ### Gestion des requêtes
 
-TODO
+Lors d'un requête sur un noeud (Put ou Get), deux comportement peuvent se
+présenter :
+
+* Ou bien la donnée est sur le noeud en question, et dans ce cas le noeud
+  répond tout simplement à la requête
+
+* Ou bien la donnée est sur un autre noeud : dans ce cas, le noeud à qui
+  l'on a demandé la donnée envoie un message au noeud ayant la donnée,
+  message contenant la requête associée (via la methode `send(Address, Command)`).
+  On définit alors dans la methode `receive(Message)` l'enregistrement
+  d'un `Callable` qui définit l'action à faire : executer la commande
+  et envoyer un message de type `Reply` au noeud appelé contenant le
+  resultat de la commande. Les traitements des messages étant tous définit
+  dans la `CmdHandler`, on définit egalement l'action à faire en cas de
+  message de type `Reply`, qui constiste simplement en l'assignation d'une
+  variable lue par le Thread principale.
+
+Une fois cela fait, nous avons également protéger les sections critiques
+des noeuds afin de permettre aux workers de travailler en même temps.
 
 ## KVS avec migration de données
 

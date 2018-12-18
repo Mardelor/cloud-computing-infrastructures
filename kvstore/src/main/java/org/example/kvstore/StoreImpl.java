@@ -116,7 +116,7 @@ public class StoreImpl<K,V> extends ReceiverAdapter implements Store<K,V> {
             return data.get(k);
         }
         try {
-            this.pending = new CompletableFuture();
+            this.pending = new CompletableFuture<>();
             this.send(owner, factory.newGetCmd(k));
             return this.pending.get();
         } catch (Exception e) {
@@ -194,5 +194,4 @@ public class StoreImpl<K,V> extends ReceiverAdapter implements Store<K,V> {
             return null;
         }
     }
-
 }
