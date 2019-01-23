@@ -20,10 +20,13 @@ public class RegisterTest {
         Register<Integer> copy2 = manager.newRegister();
         Register<Integer> copy3 = manager.newRegister();
 
-        assert copy2.read() == null;
-        copy1.write(42);
-        assert copy3.read() == 42;
-
+        try {
+            assert copy2.read() == null;
+            copy1.write(42);
+            assert copy3.read() == 42;
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     @Test

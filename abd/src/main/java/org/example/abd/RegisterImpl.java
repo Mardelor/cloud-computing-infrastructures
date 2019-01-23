@@ -8,7 +8,6 @@ import org.jgroups.Message;
 import org.jgroups.ReceiverAdapter;
 import org.jgroups.View;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -75,6 +74,7 @@ public class RegisterImpl<V> extends ReceiverAdapter implements Register<V>{
      * Replies' counter
      */
     private int counter;
+    private final String lock = "A";
 
     /**
      * @param name  name of the register
@@ -132,10 +132,12 @@ public class RegisterImpl<V> extends ReceiverAdapter implements Register<V>{
     private synchronized V execute(Command cmd){
         System.out.println("Start execution...");
         pending = new CompletableFuture<V>();
-        for (Address server : quorumSystem.pickQuorum()) {
+        List<Address> servers = quorumSystem.pickQuorum();
+        for (Address server : servers) {
             send(server, cmd);
         }
         V reply = null;
+        System.out.println("Messages sent to " + servers.size() + " servers");
         try {
             reply = pending.get();
         } catch (InterruptedException | ExecutionException e) {
@@ -163,13 +165,14 @@ public class RegisterImpl<V> extends ReceiverAdapter implements Register<V>{
             send(msg.getSrc(), factory.newWriteReply());
         } else if (cmd instanceof ReadReply) {
             // If it's a read reply, increment counter and check if the received value is newer than the previous one
-            // if so, update the current reply
+            // if so, update the current value
             // check the counter to fill the future if needed
-            counter++;
-            if (currentReply == null) {
+            synchronized (lock) {
+                counter++;
+            }
+            System.out.println("Quorum size : " + quorumSystem.quorumSize() + ", Counter : " + counter);
+            if (currentReply == null || currentReply.getTag() < cmd.getTag()) {
                 currentReply = cmd;
-            } else if (currentReply.getTag() < cmd.getTag()){
-                currentReply = factory.newReadReply(cmd.getValue(), cmd.getTag());
             }
             if (counter == quorumSystem.quorumSize()) {
                 System.out.println("Read OK");
@@ -177,7 +180,7 @@ public class RegisterImpl<V> extends ReceiverAdapter implements Register<V>{
                 counter = 0;
             }
         } else if (cmd instanceof WriteReply) {
-            // If it's a write reply, increment the cunter and fill the future if needed
+            // If it's a write reply, increment the counter and fill the future if needed
             counter++;
             if (counter == quorumSystem.quorumSize()) {
                 System.out.println("Write OK");
