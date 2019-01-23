@@ -9,70 +9,90 @@ PIPEREAU Yohan
 ZIRNHELD Rémy
 
 Le but de ce TP est d'implémenter un key-value store (KVS), un modèle
-NoSQL basique. Pour ce faire, nous avons tout d'abord implémenter un KVS
+NoSQL basique. Pour ce faire, nous avons tout d'abord implémenté un KVS
 sans traiter les cas ou le nombre de noeuds change, cas qui implique une
-redistribution des données. Nous avons dans un second temps implémenter
+redistribution des données. Nous avons dans un second temps implémenté
 la partie migration de données.
 
 ## Un simple KVS
 
-Partie 3 du TP :
-* Explication de ce que l'on implémente (schéma)
-* Code review
-
 ### Localisation des données
 
-Nous avons tout d'abord implémenter la partie localisation des données,
+Nous avons tout d'abord implémenté la partie localisation des données,
 c'est-à-dire les opérations qui, à partir d'une clé, permettent de connaître
-le noeuds sur lequel se trouve la donnée associée. Pour cela, on représente
+le noeud sur lequel se trouve la donnée associée. Pour cela, on représente
 l'ensemble des clés comme un anneau, une liste d'entiers dans notre cas,
-qui représente toute les clés possibles. Cet anneau est découpé en différente
-partie, chaque partie représentant une liste de clés. On associe à chacune
-de ces parties un noeuds qui stocke donc toute les données de la liste de
+qui représente toute les clés possibles. Cet anneau est découpé en différentes
+parties, chaque partie représentant une liste de clés. On associe à chacune
+de ces parties un noeud qui stocke donc toutes les données de la liste de
 clés représentée.
 
 Dans notre implémentation, on représente les clés comme des `int` en
 prenant le hashCode des clés, et les identifiants de noeuds sont des
 objet de type `Address`. Cela implique que l'opération hashCode est la
-même pour tout les noeuds, c'est-à-dire que pour une clé donnée, deux
+même pour tous les noeuds, c'est-à-dire que pour une clé donnée, deux
 noeuds donneront le même hashCode à la clé. Cette partie est implémentée
 dans la classe `ConsistenHash`, qui construit à partir d'une `View`,
 c'est-à-dire à partir du nombre de noeuds dans le cluster, l'anneau
-représentant des clés ainsi que dictionnaire liant liste de clés et noeud
+représentant les clés ainsi que le dictionnaire liant liste de clés et noeud
 de stockage.
 
 Ainsi, la méthode `ConsitentHash.lookup(Object key)` retourne l'addresse
-du noeud qui contient la donnée qui a pour clé key. Le but est de pouvoir
-addresser sa requête à n'importe quel noeud, et donc d'éviter un goulot
-d'étranglement sur un serveur "coordinateur".
+du noeud qui contient la donnée qui a pour clé 'key'. Le but est de pouvoir
+addresser sa requête à n'importe quel noeud qui redirigera la requête,
+et donc d'éviter un goulot d'étranglement sur un serveur "coordinateur".
 
 ### Gestion des requêtes
 
-Lors d'un requête sur un noeud (Put ou Get), deux comportement peuvent se
+Lors d'une requête sur un noeud (Put ou Get), deux comportements peuvent se
 présenter :
 
 * Ou bien la donnée est sur le noeud en question, et dans ce cas le noeud
   répond tout simplement à la requête
 
 * Ou bien la donnée est sur un autre noeud : dans ce cas, le noeud à qui
-  l'on a demandé la donnée envoie un message au noeud ayant la donnée,
+  on a demandé la donnée envoie un message au noeud ayant la donnée,
   message contenant la requête associée (via la methode `send(Address, Command)`).
   On définit alors dans la methode `receive(Message)` l'enregistrement
   d'un `Callable` qui définit l'action à faire : executer la commande
-  et envoyer un message de type `Reply` au noeud appelé contenant le
-  resultat de la commande. Les traitements des messages étant tous définit
-  dans la `CmdHandler`, on définit egalement l'action à faire en cas de
-  message de type `Reply`, qui constiste simplement en l'assignation d'une
-  variable lue par le Thread principale.
+  et envoyer un message de type `Reply` au noeud appelé. Ce message contient le
+  resultat de la commande. Les traitements des messages étant tous définis
+  dans la `CmdHandler`, on définit également l'action à faire en cas de
+  message de type `Reply`, qui consiste simplement en l'assignation d'une
+  variable lue par le Thread principal.
 
-Une fois cela fait, nous avons également protéger les sections critiques
+Une fois cela fait, nous avons également protégé les sections critiques
 des noeuds afin de permettre aux workers de travailler en même temps.
 
 ## KVS avec migration de données
 
-Partie 4 du TP :
-* Explication de la feature (tolérance aux fautes & scalabilité)
-* Code review
+Dans notre implémentation du KVS, chaque serveur gère ses données qui sont
+représentées en RAM par des dictionnaires. Si un serveur tombe, il n'y a
+alors aucun moyen de récupérer les données, donc de les migrer. Nous avons
+donc réfléchis uniquement à un moyen de re-répartir les clés en cas d'ajout
+ou de retrait de serveur.
+
+Dans un cas réel, il faudrait fournir aux serveurs un moyen de récupérer
+les données stockées dans les données locales (persistantes) de chaque
+serveur. Idéalement, on éviterait la problématique de la migration en ayant
+une gestion de réplicas pour chaque partie de l'ensemble des clés.
+
+Nous proposons donc deux manières de re-répartir les clés :
+* En privilégiant l'équilibrage de la charge entre les serveurs : lorsqu'un
+  serveur tombe ou lorsqu'un serveur revient, on redécoupe l'ensemble des clés
+  de manière équitable dans le même ordre qu'à l'origine. Ainsi, chaque serveur
+  sait quels couples clé-valeur il doit recevoir et envoyer. Cela a pour
+  avantage de répartir la charge, mais cela implique beaucoup de communication
+  entre les serveurs, et donc une plus faible disponibilité.
+
+* En privilégiant la performance et la disponibilité : lors d'un changement
+  de vue, le serveur possédant la section de l'espace de clés directement inférieure au
+  serveur tombé au combat récupère tout la section de l'espace de clés gérée par ce dernier.
+  Cela a pour avantage de ne rendre indisponible que les serveurs concernés,
+  mais cela a un impact sur la répartition de charge, puisque celui qui a
+  récupéré les clés va logiquement recevoir davantage de requêtes que les
+  autres. En pratique, cet état est temporaire puisque le serveur tombé sera
+  redémarré et récuperera ses clés, ré-homogénisant la charge.
 
 ## Annexes
 ### Un simple KVS - Code
@@ -124,6 +144,7 @@ Partie 4 du TP :
                 return null;
             }
         }
+
 2. StoreImpl.java :
 
         import org.example.kvstore.cmd.*;
@@ -322,5 +343,3 @@ Partie 4 du TP :
             }
 
         }
-
-### KVS avec Migration de données - Code
